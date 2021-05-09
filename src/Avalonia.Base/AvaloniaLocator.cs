@@ -5,11 +5,11 @@ using System.Collections.Generic;
 
 namespace Avalonia
 {
-    public class AvaloniaLocator : IAvaloniaDependencyResolver
+    public partial class AvaloniaLocator : IAvaloniaLocator
     {
         private readonly IAvaloniaDependencyResolver _parentScope;
         public static IAvaloniaDependencyResolver Current { get; set; }
-        public static AvaloniaLocator CurrentMutable { get; set; }
+        public static IAvaloniaLocator CurrentMutable { get; set; }
         private readonly Dictionary<Type, Func<object>> _registry = new Dictionary<Type, Func<object>>();
 
         static AvaloniaLocator()
@@ -19,7 +19,7 @@ namespace Avalonia
 
         public AvaloniaLocator()
         {
-            
+
         }
 
         public AvaloniaLocator(IAvaloniaDependencyResolver parentScope)
@@ -33,7 +33,7 @@ namespace Avalonia
             return _registry.TryGetValue(t, out rv) ? rv() : _parentScope?.GetService(t);
         }
 
-        public class RegistrationHelper<TService>
+        public class RegistrationHelper<TService> : IRegistrationHelper<TService>
         {
             private readonly AvaloniaLocator _locator;
 
@@ -44,13 +44,13 @@ namespace Avalonia
 
             public AvaloniaLocator ToConstant<TImpl>(TImpl constant) where TImpl : TService
             {
-                _locator._registry[typeof (TService)] = () => constant;
+                _locator._registry[typeof(TService)] = () => constant;
                 return _locator;
             }
 
             public AvaloniaLocator ToFunc<TImlp>(Func<TImlp> func) where TImlp : TService
             {
-                _locator._registry[typeof (TService)] = () => func();
+                _locator._registry[typeof(TService)] = () => func();
                 return _locator;
             }
 
@@ -58,19 +58,19 @@ namespace Avalonia
             {
                 var constructed = false;
                 TImlp instance = default;
-                _locator._registry[typeof (TService)] = () =>
-                {
-                    if (!constructed)
-                    {
-                        instance = func();
-                        constructed = true;
-                    }
+                _locator._registry[typeof(TService)] = () =>
+               {
+                   if (!constructed)
+                   {
+                       instance = func();
+                       constructed = true;
+                   }
 
-                    return instance;
-                };
+                   return instance;
+               };
                 return _locator;
             }
-            
+
             public AvaloniaLocator ToSingleton<TImpl>() where TImpl : class, TService, new()
             {
                 TImpl instance = null;
@@ -80,20 +80,19 @@ namespace Avalonia
             public AvaloniaLocator ToTransient<TImpl>() where TImpl : class, TService, new() => ToFunc(() => new TImpl());
         }
 
-        public RegistrationHelper<T> Bind<T>() => new RegistrationHelper<T>(this);
+        public IRegistrationHelper<T> Bind<T>() => new RegistrationHelper<T>(this);
 
-
-        public AvaloniaLocator BindToSelf<T>(T constant)
+        public IAvaloniaLocator BindToSelf<T>(T constant)
             => Bind<T>().ToConstant(constant);
 
-        public AvaloniaLocator BindToSelfSingleton<T>() where T : class, new() => Bind<T>().ToSingleton<T>();
+        public IAvaloniaLocator BindToSelfSingleton<T>() where T : class, new() => Bind<T>().ToSingleton<T>();
 
         class ResolverDisposable : IDisposable
         {
             private readonly IAvaloniaDependencyResolver _resolver;
-            private readonly AvaloniaLocator _mutable;
+            private readonly IAvaloniaLocator _mutable;
 
-            public ResolverDisposable(IAvaloniaDependencyResolver resolver, AvaloniaLocator mutable)
+            public ResolverDisposable(IAvaloniaDependencyResolver resolver, IAvaloniaLocator mutable)
             {
                 _resolver = resolver;
                 _mutable = mutable;
@@ -106,25 +105,19 @@ namespace Avalonia
             }
         }
 
-
         public static IDisposable EnterScope()
         {
             var d = new ResolverDisposable(Current, CurrentMutable);
-            Current = CurrentMutable =  new AvaloniaLocator(Current);
+            Current = CurrentMutable = new AvaloniaLocator(Current);
             return d;
         }
-    }
-
-    public interface IAvaloniaDependencyResolver
-    {
-        object GetService(Type t);
     }
 
     public static class LocatorExtensions
     {
         public static T GetService<T>(this IAvaloniaDependencyResolver resolver)
         {
-            return (T) resolver.GetService(typeof (T));
+            return (T)resolver.GetService(typeof(T));
         }
     }
 }
